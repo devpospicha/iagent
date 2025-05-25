@@ -1,27 +1,3 @@
-//go:build linux
-// +build linux
-
-/*
-SPDX-License-Identifier: GPL-3.0-or-later
-
-Copyright (C) 2025 Aaron Mathis aaron.mathis@gmail.com
-
-This file is part of GoSight.
-
-GoSight is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-GoSight is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with GoSight. If not, see https://www.gnu.org/licenses/.
-*/
-
 package linuxcollector
 
 import (
@@ -40,16 +16,21 @@ import (
 	"github.com/devpospicha/ishared/utils"
 )
 
+type RawEntry struct {
+	Fields            map[string]string
+	RealtimeTimestamp uint64
+}
+
 // JournaldCollector streams log entries using an asynchronous background reader.
 type JournaldCollector struct {
 	Config *config.Config
 
-	journal    *sdjournal.Journal
-	lines      chan model.LogEntry // Internal channel for collected lines
-	stop       chan struct{}       // Channel to signal background goroutine stop
-	wg         sync.WaitGroup      // WaitGroup to ensure clean shutdown
-	mu         sync.Mutex          // Mutex to protect access during shutdown
-	once       sync.Once           // Add this field
+	journal    *sdjournal.JournalReader // Systemd journal handle
+	lines      chan model.LogEntry      // Internal channel for collected lines
+	stop       chan struct{}            // Channel to signal background goroutine stop
+	wg         sync.WaitGroup           // WaitGroup to ensure clean shutdown
+	mu         sync.Mutex               // Mutex to protect access during shutdown
+	once       sync.Once                // Add this field
 	cleanupErr error
 	batchSize  int
 	maxSize    int
@@ -63,56 +44,28 @@ func (j *JournaldCollector) Name() string {
 // NewJournaldCollector initializes a new JournaldCollector.
 func NewJournaldCollector(cfg *config.Config) *JournaldCollector {
 	utils.Info("Initializing journald collector...")
-	j, err := sdjournal.NewJournal()
+
+	readerCfg := sdjournal.JournalReaderConfig{
+		// Example: Start at tail (new logs only)
+		NumFromTail: uint64(cfg.Agent.LogCollection.BatchSize * 10),
+		// Since: time.Now(), // optional: only logs since now
+	}
+
+	journalReader, err := sdjournal.NewJournalReader(readerCfg)
 	if err != nil {
-		utils.Error("Failed to open systemd journal: %v. Collector disabled.", err)
+		utils.Error("Failed to create JournalReader: %v. Collector disabled.", err)
 		return &JournaldCollector{} // Return disabled collector
 	}
 
-	// Filter for relevant priorities (e.g., INFO and higher)
-	// Adjust priorities as needed (0=emerg, 1=alert, 2=crit, 3=err, 4=warn, 5=notice, 6=info, 7=debug)
-	// Example: Include warning and higher
-	for _, prio := range []string{"0", "1", "2", "3", "4"} {
-		match := sdjournal.Match{Field: sdjournal.SD_JOURNAL_FIELD_PRIORITY, Value: prio}
-		if err := j.AddMatch(match.String()); err != nil {
-			utils.Warn("Failed to add journal priority match %s: %v", prio, err)
-			// Continue anyway, might just get more logs
-		}
-		// Disjunction means OR - we want logs with PRIORITY=0 OR PRIORITY=1 OR ...
-		if err := j.AddDisjunction(); err != nil {
-			utils.Warn("Failed to add journal disjunction: %v", err)
-		}
-	}
-	// Add more filters if needed (e.g., specific units)
-	// j.AddMatch("_SYSTEMD_UNIT=nginx.service")
-
-	// Seek to end to skip historical logs
-	if err := j.SeekTail(); err != nil {
-		utils.Error("Failed to seek journal to tail: %v. Collector might report old logs.", err)
-		// Attempt to continue, but logs might be duplicated or old
-	} else {
-		// Seeking to the tail places the cursor *at* the last entry.
-		// We need to move *past* it to only get new entries.
-		// Calling Next() achieves this. Ignore result/error, just advance position.
-		_, _ = j.Previous() // Move to the last entry
-		// Note: Seeking tail and then immediately moving previous places cursor just before last entry
-		// Waiting for the next event after this should fetch truly new logs.
-		// Or alternatively, keep the j.Next() from the original code after SeekTail if that works better.
-		// Let's stick with SeekTail and rely on Wait() picking up the next *new* event.
-	}
-
 	collector := &JournaldCollector{
-		Config:  cfg,
-		journal: j,
-		// Buffer size: batchSize * some multiplier or configurable
-		lines: make(chan model.LogEntry, cfg.Agent.LogCollection.BatchSize*10),
-		stop:  make(chan struct{}),
-
+		Config:    cfg,
+		journal:   journalReader,
+		lines:     make(chan model.LogEntry, cfg.Agent.LogCollection.BatchSize*10),
+		stop:      make(chan struct{}),
 		batchSize: cfg.Agent.LogCollection.BatchSize,
 		maxSize:   cfg.Agent.LogCollection.MessageMax,
 	}
 
-	// Start the background reader goroutine
 	collector.wg.Add(1)
 	go collector.runReader()
 
@@ -120,93 +73,59 @@ func NewJournaldCollector(cfg *config.Config) *JournaldCollector {
 	return collector
 }
 
+func parseRawJournalLine(line string) *RawEntry {
+	fields := map[string]string{}
+
+	// Example format: "FIELD1=value1\nFIELD2=value2\n..."
+	lines := strings.Split(line, "\n")
+	for _, l := range lines {
+		if kv := strings.SplitN(l, "=", 2); len(kv) == 2 {
+			fields[kv[0]] = kv[1]
+		}
+	}
+
+	ts, _ := strconv.ParseUint(fields["__REALTIME_TIMESTAMP"], 10, 64)
+
+	return &RawEntry{
+		Fields:            fields,
+		RealtimeTimestamp: ts,
+	}
+}
+
 // runReader runs in the background, waiting for and processing journal entries.
 func (j *JournaldCollector) runReader() {
 	defer j.wg.Done()
-	defer func() {
-		// Ensure journal is closed if goroutine exits unexpectedly
-		j.mu.Lock()
-		if j.journal != nil {
-			utils.Debug("Closing journal handle in runReader defer.")
-			j.journal.Close()
-			j.journal = nil
-		}
-		j.mu.Unlock()
-		// Close the lines channel to signal Collect that no more lines will come
-		close(j.lines)
-		utils.Debug("Journald reader goroutine stopped.")
-	}()
+	defer j.journal.Close()
 
-	utils.Debug("Journald reader goroutine started.")
-
-	// Timeout for the Wait call. Needs to be short enough to allow
-	// timely checking of the stop channel.
-	waitTimeout := 2 * time.Second // Check stop channel every 2 seconds
+	buf := make([]byte, 8192)
 
 	for {
-		// Wait blocks until the journal changes, or the timeout occurs.
-		// Returns 1 if journal changed, 0 if timeout, -1 on error.
-		ret := j.journal.Wait(waitTimeout)
-
-		// Check for stop signal *after* Wait returns, regardless of result.
 		select {
 		case <-j.stop:
-			utils.Info("Stop signal received for journald reader.")
-			return // Exit loop and trigger deferred cleanup
+			return
 		default:
-			// Continue processing if not stopped
-		}
-
-		if ret < 0 {
-			utils.Error("Journal wait failed: %d. Stopping reader.", ret)
-			// Consider if this error is recoverable or needs agent restart/alert
-			return // Exit loop on error
-		}
-
-		// If Wait timed out (ret == 0) or journal changed (ret == 1),
-		// try processing entries. This loop handles the case where multiple
-		// entries arrived during the Wait or timeout.
-		for {
-			// Move cursor to the next entry. Returns > 0 if entry read, 0 if no more entries, < 0 on error.
-			n, err := j.journal.Next()
+			n, err := j.journal.Read(buf)
 			if err != nil {
-				utils.Error("Failed reading next journal entry: %v. Stopping reader.", err)
-				return // Exit loop on error
-			}
-			if n == 0 {
-				// No more new entries currently available
-				break // Exit inner processing loop, go back to Wait
-			}
-
-			// Successfully read an entry, get its data
-			entry, err := j.journal.GetEntry()
-			if err != nil {
-				utils.Warn("Failed to get journal entry data: %v. Skipping entry.", err)
-				continue // Skip this entry, try next
-			}
-
-			// Filter out kernel messages if desired (as in original code)
-			// Could be made configurable
-			if entry.Fields["SYSLOG_IDENTIFIER"] == "kernel" {
+				if err != io.EOF {
+					utils.Warn("Error reading journal: %v", err)
+				}
+				time.Sleep(250 * time.Millisecond)
 				continue
 			}
+			if n > 0 {
+				line := string(buf[:n])
+				line = strings.Trim(line, "\x00\n")
 
-			// Parse and build the log entry
-			log := buildLogEntry(entry, j.maxSize)
+				entry := parseRawJournalLine(line)
+				if entry == nil {
+					continue
+				}
 
-			// Send parsed entry to buffer channel, non-blockingly
-			select {
-			case j.lines <- log:
-				// Successfully sent
-			case <-j.stop: // Check stop again in case it happened during processing
-				utils.Info("Stop signal received while processing journal entry.")
-				return
-			default:
-				// Buffer full, drop log and warn
-				utils.Warn("Journald log buffer full. Dropping log entry: %s", log.Message)
+				log := buildLogEntry(entry, j.maxSize)
+				j.lines <- log
 			}
-		} // End inner processing loop
-	} // End outer wait loop
+		}
+	}
 }
 
 // Collect drains the internal 'lines' channel and batches the entries.
@@ -331,7 +250,7 @@ func mapPriorityToLevel(priority string) string {
 // buildLogEntry constructs a LogEntry from a systemd journal entry.
 // Fields: cleaned journald fields (no `_` prefix)
 // Meta.Extra: original raw journald fields for advanced filtering/debugging
-func buildLogEntry(entry *sdjournal.JournalEntry, maxSize int) model.LogEntry {
+func buildLogEntry(entry *RawEntry, maxSize int) model.LogEntry {
 
 	timestamp := time.Unix(0, int64(entry.RealtimeTimestamp)*int64(time.Microsecond))
 

@@ -3,8 +3,8 @@ module github.com/devpospicha/iagent
 go 1.24.3
 
 require (
-	github.com/devpospicha/ishared v0.0.0-20250513191055-0380956c32cb
 	github.com/coreos/go-systemd/v22 v22.5.0
+	github.com/devpospicha/ishared v1.0.0
 	github.com/docker/docker v25.0.6+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/nxadm/tail v1.4.11
@@ -56,3 +56,7 @@ require (
 )
 
 replace github.com/docker/distribution => github.com/docker/distribution v2.7.1+incompatible
+
+replace github.com/devpospicha/iagent => ../iagent
+
+replace github.com/devpospicha/ishared => ../ishared
