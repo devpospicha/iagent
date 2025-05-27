@@ -1,4 +1,7 @@
-package linuxcollector
+//go:build linux
+// +build linux
+
+package linuxos
 
 import (
 	"context"

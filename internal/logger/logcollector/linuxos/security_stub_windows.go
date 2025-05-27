@@ -1,17 +1,7 @@
 //go:build windows
 // +build windows
 
-/*
-SPDX-License-Identifier: GPL-3.0-or-later
-
-Copyright (C) 2025 Aaron Mathis
-
-This file is part of GoSight.
-
-This is a Windows stub for the SecurityLogCollector to allow cross-platform compilation.
-*/
-
-package linuxcollector
+package linuxos
 
 import (
 	"context"

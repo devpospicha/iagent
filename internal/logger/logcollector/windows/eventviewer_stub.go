@@ -12,7 +12,7 @@ import (
 
 type EventViewerCollector struct{}
 
-func NewEventViewerCollector(_ *config.Config, _ string) *EventViewerCollector {
+func NewEventViewerCollector(_ *config.Config) *EventViewerCollector {
 	return &EventViewerCollector{}
 }
 

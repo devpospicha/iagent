@@ -1,27 +1,3 @@
-/*
-SPDX-License-Identifier: GPL-3.0-or-later
-
-Copyright (C) 2025 Aaron Mathis aaron.mathis@gmail.com
-
-This file is part of GoSight.
-
-GoSight is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-GoSight is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with GoSight. If not, see https://www.gnu.org/licenses/.
-*/
-
-// gosight/agent/internal/collector/registry.go
-// registry.go - loads and initializes all enabled collectors at runtime.
-
 package metriccollector
 
 import (
@@ -60,9 +36,15 @@ func NewRegistry(cfg *config.Config) *MetricRegistry {
 		case "net":
 			reg.Collectors["net"] = system.NewNetworkCollector()
 		case "podman":
-			reg.Collectors["podman"] = container.NewPodmanCollectorWithSocket(cfg.Podman.Socket)
+			if cfg.Podman.Enabled {
+				reg.Collectors["podman"] = container.NewPodmanCollectorWithSocket(cfg.Podman.Socket)
+			}
+
 		case "docker":
-			reg.Collectors["docker"] = container.NewDockerCollector()
+			if cfg.Docker.Enabled {
+				reg.Collectors["docker"] = container.NewDockerCollector()
+			}
+
 		default:
 			utils.Warn(" Unknown collector: %s (skipping) \n", name)
 		}
@@ -79,11 +61,11 @@ func (r *MetricRegistry) Collect(ctx context.Context) ([]model.Metric, error) {
 	for name, collector := range r.Collectors {
 		metrics, err := collector.Collect(ctx)
 		if err != nil {
-			utils.Error(" Error collecting %s: %v\n", name, err)
+			utils.Error(" Error collecting metric data %s: %v\n", name, err)
 			continue
 		}
 		all = append(all, metrics...)
 	}
-
+	//utils.Info("MetricRegistry %vs ", all)
 	return all, nil
 }

@@ -63,7 +63,7 @@ podman:
   socket: "/run/user/1000/podman/podman.sock"
 
 docker:
-  enabled: true
+  enabled: false
   socket: "/var/run/docker.sock"
 
 `

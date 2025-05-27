@@ -2,6 +2,7 @@ package logsender
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 
@@ -65,8 +66,10 @@ func (s *LogSender) manageConnection() {
 
 		// Wait out the pause window (returns when pauseUntil ≤ now)
 		grpcconn.WaitForResume()
-
+		log.Println("LogSender: Resuming connection management")
+		//utils.Info("LogSender: Resuming connection management %v", s.cfg)
 		cc, err := grpcconn.GetGRPCConn(s.cfg)
+		//log.Fatal("gRPC connection:", cc)
 		if err != nil {
 			utils.Info("Server offline (dial): retrying in %s", backoff)
 			time.Sleep(backoff)

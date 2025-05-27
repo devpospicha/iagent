@@ -1,30 +1,3 @@
-/*
-SPDX-License-Identifier: GPL-3.0-or-later
-
-Copyright (C) 2025 Aaron Mathis aaron.mathis@gmail.com
-
-This file is part of GoSight.
-
-GoSight is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-GoSight is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with GoSight. If not, see https://www.gnu.org/licenses/.
-*/
-// internal/config/config.go
-// Package config provides functions to load and manage the configuration for the GoSight agent.
-// It handles loading the configuration from a YAML file, applying environment variable overrides,
-// and parsing CSV strings into slices. The configuration includes settings for TLS, logging,
-// Podman and Docker integration, custom tags, and various collection intervals for metrics,
-// logs, and processes. The configuration is structured to allow for easy modification and
-// extension as needed.
 package config
 
 import (
@@ -143,14 +116,6 @@ func LoadConfig(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// ApplyEnvOverrides applies environment variable overrides to the configuration.
-// It checks for specific environment variables and updates the corresponding fields
-// in the Config struct. If an environment variable is set, it overrides the value
-// in the configuration. The function prints the overridden values to the console.
-// This allows users to customize the configuration without modifying the YAML file.
-// The function handles various settings such as server URL, collection intervals,
-// log file paths, TLS certificates, and custom tags. It also validates the format
-// of the GOSIGHT_INTERVAL environment variable to ensure it is a valid duration.
 func ApplyEnvOverrides(cfg *Config) {
 	if val := os.Getenv("GOSIGHT_SERVER_URL"); val != "" {
 		cfg.Agent.ServerURL = val
@@ -208,6 +173,10 @@ func ApplyEnvOverrides(cfg *Config) {
 
 	// Podman socket override
 	if val := os.Getenv("GOSIGHT_PODMAN_SOCKET"); val != "" {
+		if !cfg.Podman.Enabled {
+			fmt.Printf("Podman integration is disabled, but GOSIGHT_PODMAN_SOCKET is set: %s\n", val)
+		}
+
 		cfg.Podman.Socket = val
 		fmt.Printf("Env override: GOSIGHT_PODMAN_SOCKET = %s\n", val)
 	}

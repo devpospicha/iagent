@@ -1,33 +1,7 @@
-/*
-SPDX-License-Identifier: GPL-3.0-or-later
+//go:build linux
+// +build linux
 
-Copyright (C) 2025 Aaron Mathis aaron.mathis@gmail.com
-
-This file is part of GoSight.
-
-GoSight is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-GoSight is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with GoSight. If not, see https://www.gnu.org/licenses/.
-*/
-
-// internal/agent.go
-// gosight/agent/internal/agent.go
-
-// Package agent provides the main functionality for the GoSight agent.
-// It handles the initialization and management of various components
-// such as metrics, logs, and processes. The agent is responsible for
-// collecting data from the system and sending it to the GoSight server.
-// It also manages the agent's identity and configuration.
-package gosightagent
+package iagent
 
 import (
 	"context"
@@ -35,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/devpospicha/iagent/internal/config"
-	"github.com/devpospicha/iagent/internal/logs/logrunner"
 	metricrunner "github.com/devpospicha/iagent/internal/metrics/metricrunner"
 	"github.com/devpospicha/iagent/internal/processes/processrunner"
 	"github.com/devpospicha/ishared/model"
@@ -71,11 +44,11 @@ func TestNewAgent(t *testing.T) {
 
 func TestAgent_Start(t *testing.T) {
 	type fields struct {
-		Config        *config.Config
-		MetricRunner  *metricrunner.MetricRunner
-		AgentID       string
-		AgentVersion  string
-		LogRunner     *logrunner.LogRunner
+		Config       *config.Config
+		MetricRunner *metricrunner.MetricRunner
+		AgentID      string
+		AgentVersion string
+		//	LogRunner     *logrunner.LogRunner
 		ProcessRunner *processrunner.ProcessRunner
 		Meta          *model.Meta
 		Ctx           context.Context
@@ -93,11 +66,11 @@ func TestAgent_Start(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a := &Agent{
-				Config:        tt.fields.Config,
-				MetricRunner:  tt.fields.MetricRunner,
-				AgentID:       tt.fields.AgentID,
-				AgentVersion:  tt.fields.AgentVersion,
-				LogRunner:     tt.fields.LogRunner,
+				Config:       tt.fields.Config,
+				MetricRunner: tt.fields.MetricRunner,
+				AgentID:      tt.fields.AgentID,
+				AgentVersion: tt.fields.AgentVersion,
+				//	LogRunner:     tt.fields.LogRunner,
 				ProcessRunner: tt.fields.ProcessRunner,
 				Meta:          tt.fields.Meta,
 				Ctx:           tt.fields.Ctx,
@@ -109,11 +82,11 @@ func TestAgent_Start(t *testing.T) {
 
 func TestAgent_Close(t *testing.T) {
 	type fields struct {
-		Config        *config.Config
-		MetricRunner  *metricrunner.MetricRunner
-		AgentID       string
-		AgentVersion  string
-		LogRunner     *logrunner.LogRunner
+		Config       *config.Config
+		MetricRunner *metricrunner.MetricRunner
+		AgentID      string
+		AgentVersion string
+		//	LogRunner     *logrunner.LogRunner
 		ProcessRunner *processrunner.ProcessRunner
 		Meta          *model.Meta
 		Ctx           context.Context
@@ -127,11 +100,11 @@ func TestAgent_Close(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a := &Agent{
-				Config:        tt.fields.Config,
-				MetricRunner:  tt.fields.MetricRunner,
-				AgentID:       tt.fields.AgentID,
-				AgentVersion:  tt.fields.AgentVersion,
-				LogRunner:     tt.fields.LogRunner,
+				Config:       tt.fields.Config,
+				MetricRunner: tt.fields.MetricRunner,
+				AgentID:      tt.fields.AgentID,
+				AgentVersion: tt.fields.AgentVersion,
+				//		LogRunner:     tt.fields.LogRunner,
 				ProcessRunner: tt.fields.ProcessRunner,
 				Meta:          tt.fields.Meta,
 				Ctx:           tt.fields.Ctx,

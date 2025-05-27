@@ -1,31 +1,7 @@
 //go:build linux
 // +build linux
 
-/*
-SPDX-License-Identifier: GPL-3.0-or-later
-
-Copyright (C) 2025 Aaron Mathis aaron.mathis@gmail.com
-
-This file is part of GoSight.
-
-GoSight is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-GoSight is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with GoSight. If not, see https://www.gnu.org/licenses/.
-*/
-// internal/logs/logcollector/linux/security_linux.go
-// Package linuxcollector provides log collection functionality for Linux systems.
-// It includes a SecurityLogCollector that tails and parses security logs
-// from common log files like /var/log/secure and /var/log/auth.log.
-package linuxcollector
+package linuxos
 
 import (
 	"context"
@@ -179,9 +155,22 @@ func (c *SecurityLogCollector) runTailing() {
 		}
 	}
 }
+func (c *SecurityLogCollector) Close() error {
+	c.mu.Lock()
+	if c.tailer == nil {
+		c.mu.Unlock()
+		return nil // Already stopped or never started
+	}
+	close(c.stop)
+	c.mu.Unlock()
+
+	c.wg.Wait()
+	utils.Info("Security log collector closed for: %s", c.logPath)
+	return nil
+}
 
 // Close stops the tailing process gracefully.
-func (c *SecurityLogCollector) Close() {
+func (c *SecurityLogCollector) Close_() {
 	c.mu.Lock()
 	if c.tailer == nil {
 		c.mu.Unlock()

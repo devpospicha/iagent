@@ -1,17 +1,7 @@
 //go:build windows
 // +build windows
 
-/*
-SPDX-License-Identifier: GPL-3.0-or-later
-
-Copyright (C) 2025 Aaron Mathis
-
-This file is part of GoSight.
-
-This is a stub for Windows to satisfy the interface used by the journald collector.
-*/
-
-package linuxcollector
+package linuxos
 
 import (
 	"context"

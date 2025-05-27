@@ -1,33 +1,4 @@
-/*
-SPDX-License-Identifier: GPL-3.0-or-later
-
-Copyright (C) 2025 Aaron Mathis aaron.mathis@gmail.com
-
-This file is part of GoSight.
-
-GoSight is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-GoSight is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with GoSight. If not, see https://www.gnu.org/licenses/.
-*/
-
-// internal/agent.go
-// gosight/agent/internal/agent.go
-
-// Package agent provides the main functionality for the GoSight agent.
-// It handles the initialization and management of various components
-// such as metrics, logs, and processes. The agent is responsible for
-// collecting data from the system and sending it to the GoSight server.
-// It also manages the agent's identity and configuration.
-package gosightagent
+package iagent
 
 import (
 	"context"
@@ -36,7 +7,8 @@ import (
 	"github.com/devpospicha/iagent/internal/config"
 	grpcconn "github.com/devpospicha/iagent/internal/grpc"
 	agentidentity "github.com/devpospicha/iagent/internal/identity"
-	"github.com/devpospicha/iagent/internal/logs/logrunner"
+
+	"github.com/devpospicha/iagent/internal/logger/logrunner"
 	"github.com/devpospicha/iagent/internal/meta"
 	metricrunner "github.com/devpospicha/iagent/internal/metrics/metricrunner"
 	"github.com/devpospicha/iagent/internal/processes/processrunner"
@@ -111,7 +83,7 @@ func (a *Agent) Start(ctx context.Context) {
 	go a.MetricRunner.Run(ctx)
 
 	utils.Debug("Agent attempting to start metricrunner.")
-	go a.LogRunner.Run(ctx)
+	//go a.LogRunner.Run(ctx)
 
 	utils.Debug("Agent attempting to start processrunner.")
 	go a.ProcessRunner.Run(ctx)
@@ -123,7 +95,7 @@ func (a *Agent) Start(ctx context.Context) {
 func (a *Agent) Close() {
 	// Stop All Runners
 	a.MetricRunner.Close()
-	a.LogRunner.Close()
+	//a.LogRunner.Close()
 	a.ProcessRunner.Close()
 
 	err := grpcconn.CloseGRPCConn()
